@@ -168,7 +168,7 @@ local function TryInspect(unit)
 	local guid = SafeGUID(unit)
 	if not guid then return end
 	local c = cache[guid]
-	if c and time() - c.t < 120 and c.links and next(c.links) and (c.grid or not db.talentPeek) then return end   -- fresh and complete: no need
+	if c and time() - c.t < 120 and c.links and next(c.links) and (c.grid or c.gridTried or not db.talentPeek) then return end   -- fresh and complete: no need
 	if inspecting and GetTime() - inspecting.at < 2 then return end
 	inspecting = { guid = guid, unit = unit, at = GetTime() }
 	-- reading someone's gear for the tooltip is a quiet background request: if they've just stepped out of range,
@@ -226,6 +226,8 @@ local function UnitTip(tt)
 				local best = 1
 				for t = 2, 3 do if (tal[t][2] or 0) > (tal[best][2] or 0) then best = t end end
 				tt:AddDoubleLine("Talents:", ("|cffffffff%s|r (%d/%d/%d)"):format(tal[best][1] or "?", tal[1][2] or 0, tal[2][2] or 0, tal[3][2] or 0), 1, 0.82, 0, 1, 1, 1)
+			elseif c and c.grid and c.grid.summary then
+				tt:AddDoubleLine("Talents:", "|cffffffff" .. c.grid.summary .. "|r", 1, 0.82, 0, 1, 1, 1)
 			end
 		end
 		-- GearScore and item level
@@ -413,7 +415,8 @@ SLASH_PINTSTIPS1 = "/tips"
 SLASH_PINTSTIPS2 = "/pintstips"
 SlashCmdList.PINTSTIPS = function(msg)
 	msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-	if msg == "off-tacotip" then PT.TacoOff()
+	if msg == "talents" then if PT.TalentDump then PT.TalentDump() end
+	elseif msg == "off-tacotip" then PT.TacoOff()
 	elseif msg == "minimap" then if PT.ToggleMinimap then PT.ToggleMinimap() end
 	else PT.ToggleOptions() end
 end
@@ -485,7 +488,7 @@ ev:SetScript("OnEvent", function(_, e, a1)
 		if unit and SameGUID(unit, guid) then
 			local links = {}
 			for s = 1, 19 do links[s] = GetInventoryItemLink(unit, s) end
-			cache[guid] = { t = time(), links = links, talents = InspectTalents(), grid = PT.ReadGrid and PT.ReadGrid(true), class = select(2, UnitClass(unit)) }
+			cache[guid] = { t = time(), links = links, talents = InspectTalents(), grid = PT.ReadGrid and PT.ReadGrid(true, unit), class = select(2, UnitClass(unit)) }
 			-- the gear links sometimes come in a moment after INSPECT_READY: read them again shortly
 			local u = unit
 			for _, delay in ipairs({ 0.5, 1.5 }) do
@@ -494,10 +497,15 @@ ev:SetScript("OnEvent", function(_, e, a1)
 					if not cc or not SameGUID(u, guid) then return end
 					local more = false
 					for s = 1, 19 do local l = GetInventoryItemLink(u, s); if l and l ~= cc.links[s] then cc.links[s] = l; more = true end end
+					-- talents can come in late too
+					if not cc.talents then cc.talents = InspectTalents(); more = more or cc.talents ~= nil end
+					if not cc.grid and PT.ReadGrid then cc.grid = PT.ReadGrid(true, u); more = more or cc.grid ~= nil end
+					if delay == 1.5 then cc.gridTried = true; more = true; if not cc.grid and PT.TalentFailed then PT.TalentFailed(u) end end
 					if more and GameTooltip:IsShown() and SameGUID("mouseover", guid) then GameTooltip:SetUnit("mouseover") end
 				end)
 			end
 			if InspectFrame and InspectFrame:IsShown() then UpdateInspect(guid) end
+			if PT.dumpGUID == guid and PT.TalentDumpNow then PT.dumpGUID = nil; local du = unit; C_Timer.After(0.5, function() PT.TalentDumpNow(du) end) end
 			if GameTooltip:IsShown() and SameGUID("mouseover", guid) then GameTooltip:SetUnit("mouseover") end
 		end
 		if inspecting and inspecting.guid == guid then

@@ -3,6 +3,7 @@
 ## Notes: Better tooltips: how many of an item each of your characters has, what items are used for (professions, quests, class spells), GearScore and item level, class-coloured names, guild rank and talents (hold Shift for their talent trees). /tips
 ## Author: Jake (Pint's Add-ons, built with Claude)
 ## Version: 1.1
+## X-Curse-Project-ID: 1788676
 ## X-License: GPL-3.0
 ## IconTexture: Interface\AddOns\PintsTips\Icon
 ## SavedVariables: PintsTipsDB
