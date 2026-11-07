@@ -1,0 +1,5 @@
+Pint's Tips - Credits
+
+What items are used for (professions, quests, class spells, recipes) is generated from the CMaNGOS Classic world
+database: https://github.com/cmangos/classic-db (GPL).
+GearScore uses the same maths as TacoTip / GearScoreLite (Classic scale).

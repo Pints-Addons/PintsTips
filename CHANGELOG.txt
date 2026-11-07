@@ -1,0 +1,16 @@
+Pint's Tips - Changelog
+
+v1.1
+- Hold Shift over a player to see their talent trees beside the tooltip (option: "Shift: talent trees").
+- WoW Forever: fixed a "secret boolean" error in player tooltips during fights.
+
+v1.0
+- First public release.
+- Item tooltips: how many each of your characters has (bags, bank, mail, worn) with a total - with Pint's Alts.
+- What an item is used for: professions (with the skill range), quests and class spells; for recipes, which of
+  your characters already know it or could learn it.
+- Item level and GearScore on items; GearScore and average item level on players and in the character window.
+- Player tooltips: class-coloured name, title, guild and rank, talents and what they're targeting.
+- Tooltip position: Blizzard's corner, at the cursor, or a spot you choose.
+- Provides TT_GS for add-ons that read TacoTip's GearScore.
+- Works on Classic Era and WoW Forever.
