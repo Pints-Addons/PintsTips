@@ -18,7 +18,7 @@ _G.PintsTips = PT
 
 local DEFAULTS = {
 	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true,
-	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
+	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, unitHistory = true, notesTips = true, foreverTag = true, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
 }
 local db
 local function Print(m) print("|cffd4a017Pint's Tips:|r " .. m) end
@@ -256,6 +256,8 @@ local function UnitTip(tt)
 			tt:AddDoubleLine("Target:", txt, 1, 0.82, 0)
 		end
 	end
+	-- your history with them, your note and rating (History.lua)
+	if PT.UnitExtras then pcall(PT.UnitExtras, tt, unit, isPlayer) end
 	tt:Show()
 end
 
@@ -284,7 +286,30 @@ local function ItemTip(tt)
 		end
 	end
 	if PT.ItemExtras then PT.ItemExtras(tt, link) end
+	if tt == ShoppingTooltip1 or tt == ShoppingTooltip2 then PT.EquippedHeader(tt) end
 	tt:Show()
+end
+-- the comparison tooltip of what you're wearing: a bold gold "Currently Equipped" over it, so it's plain which is which
+local headFont = CreateFont("PintsTipsEquippedFont")
+do local f = GameFontNormalLarge and GameFontNormalLarge:GetFont() or STANDARD_TEXT_FONT; headFont:SetFont(f, 15, "OUTLINE") end
+function PT.EquippedHeader(tt)
+	local label = CURRENTLY_EQUIPPED or "Currently Equipped"
+	-- WoW Forever: the game's own little "Equipped" tab above the tooltip
+	local h = tt.CompareHeader
+	if h then
+		local fs = h.Label
+		if not fs then for _, r in ipairs({ h:GetRegions() }) do if r.GetObjectType and r:GetObjectType() == "FontString" then fs = r; break end end end
+		if fs then
+			fs:SetFontObject(headFont); fs:SetText(label); fs:SetTextColor(1, 0.82, 0)
+			local ok, w = pcall(fs.GetUnboundedStringWidth or fs.GetStringWidth, fs)
+			if ok and type(w) == "number" and not (type(issecretvalue) == "function" and issecretvalue(w)) then h:SetWidth(w + 24) end
+			if h.SetHeight then h:SetHeight(24) end
+			return
+		end
+	end
+	-- Classic Era: the first line of the tooltip says it
+	local first = _G[tt:GetName() .. "TextLeft1"]
+	if first and first:GetText() == label then first:SetFontObject(headFont); first:SetTextColor(1, 0.82, 0) end
 end
 
 ---------------------------------------------------------------- hooks
@@ -376,12 +401,13 @@ function PT.ToggleOptions()
 		Check(16, -50, "Class-coloured names", "classColor"); Check(170, -50, "Titles", "title")
 		Check(16, -72, "Guild and rank", "guild"); Check(170, -72, "Talents", "talents")
 		Check(16, -94, "GearScore", "gearscore"); Check(170, -94, "Average item level", "ilvl")
-		Check(16, -116, "What they're targeting", "target"); Check(170, -116, "Shift: talent trees", "talentPeek")
-		Check(16, -138, "Show in combat", "inCombat")
+		Check(16, -116, "What they're targeting", "target"); Check(170, -116, "Shift: talent trees (not in combat)", "talentPeek")
+		Check(16, -138, "Show in combat", "inCombat"); Check(170, -138, "Kills, duels, time grouped", "unitHistory")
 		head(-170, "Items")
 		Check(16, -188, "Item level", "itemLevel"); Check(170, -188, "Item GearScore", "itemScore")
 		Check(16, -210, "What it's used for", "usedFor"); Check(170, -210, "Count on each character", "counts")
 		Check(16, -232, "Recipes: who knows / can learn", "recipeAlts"); Check(170, -232, "Item ID", "itemID")
+		Check(16, -254, "Your notes and ratings", "notesTips"); Check(170, -254, "Added in WoW Forever", "foreverTag")
 		head(-286, "Character window")
 		Check(16, -304, "GearScore and item level", "charFrame")
 		head(-336, "Where tooltips appear")
@@ -414,10 +440,13 @@ end
 SLASH_PINTSTIPS1 = "/tips"
 SLASH_PINTSTIPS2 = "/pintstips"
 SlashCmdList.PINTSTIPS = function(msg)
+	local raw = msg or ""   -- (as typed: a note's title or an item link keeps its capitals)
 	msg = (msg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 	if msg == "talents" then if PT.TalentDump then PT.TalentDump() end
 	elseif msg == "off-tacotip" then PT.TacoOff()
 	elseif msg == "minimap" then if PT.ToggleMinimap then PT.ToggleMinimap() end
+	elseif msg == "notes" then if PT.ToggleNoteList then PT.ToggleNoteList() end
+	elseif msg:match("^note") then if PT.NoteCmd then PT.NoteCmd(raw:match("^%s*[Nn][Oo][Tt][Ee]%s*(.*)$")) end
 	else PT.ToggleOptions() end
 end
 

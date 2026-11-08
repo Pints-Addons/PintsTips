@@ -1,5 +1,17 @@
 Pint's Tips - Changelog
 
+v1.2
+- Your history in tooltips: how many of a creature you've killed (this character), and your duel record and time
+  grouped with other players.
+- Notes and ratings: write a note about a player, creature, item or quest - /tips note (your target or what's under
+  the mouse; or /tips note [item link], /tips note quest, /tips note <a title>). Rate a player's behaviour and skill
+  (-- to ++). A preview and the rating show in their tooltips; /tips notes lists them all, with a search. Notes are
+  shared by all your characters.
+- WoW Forever: "Added in WoW Forever" on items and creatures new there.
+- Each can be switched off in /tips.
+- Comparing gear: the tooltip of what you're wearing has a bold gold "Currently Equipped" over it.
+- Shift: talent trees no longer shows in combat. Switch it off altogether with "Shift: talent trees" in /tips.
+
 v1.1
 - Hold Shift over a player to see their talent trees beside the tooltip (option: "Shift: talent trees").
 - WoW Forever: fixed a "secret boolean" error in player tooltips during fights.

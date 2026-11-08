@@ -444,6 +444,7 @@ local function Hide() if win then win:Hide() end end
 function PT.TalentPeek(tt, unit)
 	local db = PT.db
 	if not db or db.talentPeek == false or tt ~= GameTooltip then return Hide() end
+	if InCombatLockdown() then return Hide() end   -- (never in a fight: Shift is busy there)
 	if not IsShiftKeyDown() or not unit or not UnitIsPlayer(unit) then return Hide() end
 	local name, cls = UnitName(unit), select(2, UnitClass(unit))
 	name, cls = PT.Known(name), PT.Known(cls)
@@ -464,8 +465,9 @@ end
 
 -- pressing or letting go of Shift while the tooltip is up
 local ev = CreateFrame("Frame")
-ev:RegisterEvent("MODIFIER_STATE_CHANGED")
-ev:SetScript("OnEvent", function(_, _, key)
+ev:RegisterEvent("MODIFIER_STATE_CHANGED"); ev:RegisterEvent("PLAYER_REGEN_DISABLED")
+ev:SetScript("OnEvent", function(_, e, key)
+	if e == "PLAYER_REGEN_DISABLED" then Hide(); return end   -- (a fight starts: put it away)
 	if key ~= "LSHIFT" and key ~= "RSHIFT" then return end
 	if GameTooltip:IsShown() and UnitExists("mouseover") then PT.TalentPeek(GameTooltip, "mouseover") else Hide() end
 end)
