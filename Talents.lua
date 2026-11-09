@@ -168,12 +168,57 @@ function PT.ReadTraits(inspect, unit)
 		PT.db.talentDebug.pos = PT.db.talentDebug.pos or {}
 		PT.db.talentDebug.pos[cls0] = table.concat(raw, " ")
 	end
+	-- stray nodes far outside the trees (an unused priest talent ~25 rows down; hunter ones miles off to the right or
+	-- below): they stretched the grid until every talent fell into the same few cells - the hunter tree showed 3 icons,
+	-- the priest one tiny jumbled ones. Keep the main block of positions on each axis, cut at any gap far wider than
+	-- the usual step (the space between the three trees is ~4 steps; the strays are 30+ away)
+	local function Trim(k)
+		local vals, seen = {}, {}
+		for _, d in ipairs(nodes) do local v = math.floor(d[k] + 0.5); if not seen[v] then seen[v] = true; vals[#vals + 1] = v end end
+		table.sort(vals)
+		local gaps = {}
+		for i = 2, #vals do local g = vals[i] - vals[i - 1]; if g >= 50 then gaps[#gaps + 1] = g end end
+		if #gaps < 2 then return end
+		table.sort(gaps)
+		local step = gaps[math.floor((#gaps + 1) / 2)]
+		-- blocks of positions with no huge gap inside; keep the one with the most talents
+		local blocks, cur = {}, { lo = vals[1], hi = vals[1] }
+		for i = 2, #vals do
+			if vals[i] - vals[i - 1] > step * 8 then blocks[#blocks + 1] = cur; cur = { lo = vals[i], hi = vals[i] } else cur.hi = vals[i] end
+		end
+		blocks[#blocks + 1] = cur
+		if #blocks < 2 then return end
+		local best, bestN
+		for _, bl in ipairs(blocks) do
+			local n = 0
+			for _, d in ipairs(nodes) do local v = math.floor(d[k] + 0.5); if v >= bl.lo and v <= bl.hi then n = n + 1 end end
+			if not bestN or n > bestN then best, bestN = bl, n end
+		end
+		local kept = {}
+		for _, d in ipairs(nodes) do local v = math.floor(d[k] + 0.5); if v >= best.lo and v <= best.hi then kept[#kept + 1] = d end end
+		nodes = kept
+	end
+	Trim(3); Trim(4)
+	if #nodes == 0 then return end
 	local x0, sx = Cells(3)
 	local y0, sy = Cells(4)
 	local cols, rows = 1, 1
 	for _, d in ipairs(nodes) do
 		d.col = math.floor((d[3] - x0) / sx + 0.5) + 1; d.row = math.floor((d[4] - y0) / sy + 0.5) + 1
 		cols, rows = math.max(cols, d.col), math.max(rows, d.row)
+	end
+	-- a stray node far below the trees (the priest tree has an unused one ~25 rows down) made the window huge and
+	-- shrank every icon to fit: leave out untaken nodes cut off from the rest by a run of empty rows
+	local usedRows, rl = {}, {}
+	for _, d in ipairs(nodes) do if not usedRows[d.row] then usedRows[d.row] = true; rl[#rl + 1] = d.row end end
+	table.sort(rl)
+	local cutoff
+	for k = 2, #rl do if rl[k] - rl[k - 1] > 3 then cutoff = rl[k - 1]; break end end
+	if cutoff then
+		local kept = {}
+		for _, d in ipairs(nodes) do if d.row <= cutoff or d[5] > 0 then kept[#kept + 1] = d end end
+		nodes, rows = kept, 1
+		for _, d in ipairs(nodes) do rows = math.max(rows, d.row) end
 	end
 	local spec
 	if inspect and unit and GetInspectSpecialization then
