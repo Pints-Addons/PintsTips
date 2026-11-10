@@ -17,7 +17,7 @@ local PT = {}
 _G.PintsTips = PT
 
 local DEFAULTS = {
-	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true,
+	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true, zone = true,
 	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, unitHistory = true, notesTips = true, foreverTag = true, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
 }
 local db
@@ -256,6 +256,21 @@ local function UnitTip(tt)
 			tt:AddDoubleLine("Target:", txt, 1, 0.82, 0)
 		end
 	end
+	-- where they are: the zone (and the spot in it, for your group, who the game tracks anywhere)
+	if isPlayer and db.zone ~= false then
+		local zone
+		local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit(unit)
+		if mapID and not (Secret and issecretvalue(mapID)) then
+			local info = C_Map.GetMapInfo(mapID)
+			zone = info and info.name
+		end
+		-- (someone else under your mouse is near you: your own zone and spot)
+		if not zone and not Known(UnitIsUnit(unit, "player")) then
+			local sub, real = GetSubZoneText and GetSubZoneText(), GetRealZoneText and GetRealZoneText()
+			zone = (sub and sub ~= "" and sub ~= real) and (sub .. ", " .. real) or real
+		end
+		if zone and not (Secret and issecretvalue(zone)) and zone ~= "" then tt:AddDoubleLine("Zone:", "|cffffffff" .. zone .. "|r", 1, 0.82, 0) end
+	end
 	-- your history with them, your note and rating (History.lua)
 	if PT.UnitExtras then pcall(PT.UnitExtras, tt, unit, isPlayer) end
 	tt:Show()
@@ -409,7 +424,7 @@ function PT.ToggleOptions()
 		Check(16, -232, "Recipes: who knows / can learn", "recipeAlts"); Check(170, -232, "Item ID", "itemID")
 		Check(16, -254, "Your notes and ratings", "notesTips"); Check(170, -254, "Added in WoW Forever", "foreverTag")
 		head(-286, "Character window")
-		Check(16, -304, "GearScore and item level", "charFrame")
+		Check(16, -304, "GearScore and item level", "charFrame"); Check(170, -304, "Players: their zone", "zone")
 		head(-336, "Where tooltips appear")
 		local modes = { { "default", "Blizzard's corner" }, { "cursor", "At the cursor" }, { "fixed", "A spot I choose" } }
 		local b = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); b:SetSize(150, 22); b:SetPoint("TOPLEFT", 16, -356)

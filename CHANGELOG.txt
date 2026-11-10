@@ -1,5 +1,9 @@
 Pint's Tips - Changelog
 
+v1.2.2
+- Players' tooltips show their zone - your group members' wherever they are, anyone else's (they're near you) as
+  your own spot and zone. "Players: their zone" in /tips switches it off.
+
 v1.2.1
 - WoW Forever: talent trees (Shift over a player) were broken for some classes - a hunter's showed only 3 talents, a
   priest's tiny jumbled icons in a very tall window. A few unused talents sit far outside the trees in the game's data
