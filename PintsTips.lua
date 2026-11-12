@@ -17,7 +17,7 @@ local PT = {}
 _G.PintsTips = PT
 
 local DEFAULTS = {
-	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true, zone = true,
+	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true, zone = true, compareRight = true, compareShift = true,
 	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, unitHistory = true, notesTips = true, foreverTag = true, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
 }
 local db
@@ -327,8 +327,73 @@ function PT.EquippedHeader(tt)
 	if first and first:GetText() == label then first:SetFontObject(headFont); first:SetTextColor(1, 0.82, 0) end
 end
 
+-- comparing gear: what you're wearing sits to the LEFT of the item you're looking at, a little smaller, its bottom
+-- edge lined up with the bottom of the item's tooltip. If there's no room on the left, the pair slides right to fit.
+local SMALL = 0.85
+local function Px(f, v) return v and v * f:GetEffectiveScale() end
+local function Arrange()
+	if not db or db.compareRight == false then return end
+	local s1, s2 = ShoppingTooltip1, ShoppingTooltip2
+	if not (s1 and s1:IsShown()) then return end
+	local _, rel = s1:GetPoint(1)
+	if rel == s2 then _, rel = s2:GetPoint(1) end
+	local main = (rel == ItemRefTooltip and ItemRefTooltip:IsShown()) and ItemRefTooltip or GameTooltip
+	if not main:IsShown() then return end
+	local two = s2 and s2:IsShown()
+	for _, t in ipairs({ s1, two and s2 or nil }) do
+		if not t.ptBase then t.ptBase = t:GetScale(); t:SetScale(t.ptBase * SMALL) end
+	end
+	-- (two of them - rings, trinkets: each is placed against the item's tooltip on its own, never one on the other -
+	-- the game chains them one way or the other as it likes, and two chained to each other is an error)
+	local last = s1
+	if two then
+		s1:ClearAllPoints(); s2:ClearAllPoints()
+		s2:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
+		local w2 = s2:GetWidth() * s2:GetEffectiveScale() / s1:GetEffectiveScale()
+		s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2 - w2 - 2, 0)
+	else
+		s1:ClearAllPoints(); s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
+	end
+	-- off the left edge of the screen? slide the item's tooltip (and the rest with it) right
+	local leftmost = Px(last, last:GetLeft())
+	local left, top, right, screen = Px(main, main:GetLeft()), Px(main, main:GetTop()), Px(main, main:GetRight()), Px(UIParent, UIParent:GetRight())
+	if not (leftmost and left and top and right and screen) then return end
+	local over = -leftmost
+	if over > 0 and right + over <= screen then
+		local es = main:GetEffectiveScale()
+		main:ClearAllPoints(); main:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (left + over) / es, top / es)
+	end
+end
+-- (the game re-places the comparison tooltip after we have, sometimes more than once - so whenever it moves it,
+-- it's put back on the right; "busy" stops our own moves from looping)
+local busy = false
+local function SafeArrange()
+	if busy then return end
+	busy = true
+	pcall(Arrange)
+	busy = false
+end
+local function HookCompare()
+	local s1 = ShoppingTooltip1
+	if not s1 then return end
+	if type(GameTooltip_ShowCompareItem) == "function" then hooksecurefunc("GameTooltip_ShowCompareItem", SafeArrange) end
+	local M = TooltipComparisonManager
+	if M and type(M.AnchorShoppingTooltips) == "function" then hooksecurefunc(M, "AnchorShoppingTooltips", SafeArrange) end
+	s1:HookScript("OnShow", function() SafeArrange(); C_Timer.After(0, SafeArrange) end)
+	for _, t in ipairs({ ShoppingTooltip1, ShoppingTooltip2 }) do
+		if t then hooksecurefunc(t, "SetPoint", function() if not busy then SafeArrange() end end) end
+	end
+	-- put the hovered tooltip's size back when the comparison goes away
+	local function Restore(self)
+		if self and self.ptBase then self:SetScale(self.ptBase); self.ptBase = nil end
+	end
+	s1:HookScript("OnHide", Restore)
+	if ShoppingTooltip2 then ShoppingTooltip2:HookScript("OnHide", Restore) end
+end
+
 ---------------------------------------------------------------- hooks
 local function HookTooltips()
+	pcall(HookCompare)
 	if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
 		TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tt) if tt == GameTooltip then UnitTip(tt) end end)
 		TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tt) if tt == GameTooltip or tt == ItemRefTooltip or tt == ShoppingTooltip1 or tt == ShoppingTooltip2 then ItemTip(tt) end end)
@@ -356,7 +421,14 @@ local function CharLine(parent, existing)
 	fs:SetJustifyH("LEFT")
 	return fs
 end
+-- what you're wearing shows beside an item only while Shift is held (the game's "always compare items" off)
+function PT.ApplyCompare()
+	if not db then return end
+	local want = db.compareShift ~= false and "0" or "1"
+	if GetCVar("alwaysCompareItems") ~= want then pcall(SetCVar, "alwaysCompareItems", want) end
+end
 function PT.UpdateChar()
+	PT.ApplyCompare()
 	if not db or not CharacterModelFrame and not PaperDollFrame then return end
 	local parent = PaperDollFrame or CharacterFrame
 	charText = CharLine(parent, charText)
@@ -406,7 +478,7 @@ end
 function PT.ToggleOptions()
 	if not opt then
 		opt = CreateFrame("Frame", "PintsTipsOptions", UIParent, "BasicFrameTemplateWithInset")
-		opt:SetSize(320, 466); opt:SetPoint("CENTER"); opt:SetFrameStrata("DIALOG")
+		opt:SetSize(320, 488); opt:SetPoint("CENTER"); opt:SetFrameStrata("DIALOG")
 		opt:SetMovable(true); opt:EnableMouse(true); opt:RegisterForDrag("LeftButton")
 		opt:SetScript("OnDragStart", opt.StartMoving); opt:SetScript("OnDragStop", opt.StopMovingOrSizing)
 		tinsert(UISpecialFrames, "PintsTipsOptions")
@@ -423,11 +495,13 @@ function PT.ToggleOptions()
 		Check(16, -210, "What it's used for", "usedFor"); Check(170, -210, "Count on each character", "counts")
 		Check(16, -232, "Recipes: who knows / can learn", "recipeAlts"); Check(170, -232, "Item ID", "itemID")
 		Check(16, -254, "Your notes and ratings", "notesTips"); Check(170, -254, "Added in WoW Forever", "foreverTag")
-		head(-286, "Character window")
-		Check(16, -304, "GearScore and item level", "charFrame"); Check(170, -304, "Players: their zone", "zone")
-		head(-336, "Where tooltips appear")
+		Check(16, -276, "Compare: worn on the left, smaller, at the bottom", "compareRight")
+		Check(170, -276, "Compare only while Shift is held", "compareShift")
+		head(-308, "Character window")
+		Check(16, -326, "GearScore and item level", "charFrame"); Check(170, -326, "Players: their zone", "zone")
+		head(-358, "Where tooltips appear")
 		local modes = { { "default", "Blizzard's corner" }, { "cursor", "At the cursor" }, { "fixed", "A spot I choose" } }
-		local b = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); b:SetSize(150, 22); b:SetPoint("TOPLEFT", 16, -356)
+		local b = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); b:SetSize(150, 22); b:SetPoint("TOPLEFT", 16, -378)
 		local mv = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); mv:SetSize(110, 22); mv:SetPoint("LEFT", b, "RIGHT", 6, 0); mv:SetText("Move spot")
 		local function show() for _, m in ipairs(modes) do if m[1] == db.anchor then b:SetText(m[2]) end end; mv:SetShown(db.anchor == "fixed") end
 		b:SetScript("OnClick", function()
@@ -437,7 +511,7 @@ function PT.ToggleOptions()
 		mv:SetScript("OnClick", function() Mover(not (mover and mover:IsShown())) end)
 		opt:HookScript("OnShow", show)
 		opt:HookScript("OnHide", function() Mover(false) end)
-		opt.taco = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); opt.taco:SetSize(200, 22); opt.taco:SetPoint("TOPLEFT", 16, -396)
+		opt.taco = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); opt.taco:SetSize(200, 22); opt.taco:SetPoint("TOPLEFT", 16, -418)
 		opt.taco:SetText("Switch TacoTip off"); opt.taco:SetScript("OnClick", function() PT.TacoOff() end)
 		opt:HookScript("OnShow", function() opt.taco:SetShown(PT.TacoLoaded()) end)
 		opt:Hide()
@@ -516,6 +590,7 @@ ev:SetScript("OnEvent", function(_, e, a1)
 		PintsTipsDB = PintsTipsDB or {}
 		db = PintsTipsDB
 		for k, v in pairs(DEFAULTS) do if db[k] == nil then db[k] = (type(v) == "table") and {} or v end end
+		C_Timer.After(1, function() PT.ApplyCompare() end)
 		PT.db = db
 	elseif e == "PLAYER_LOGIN" then
 		HookTooltips()

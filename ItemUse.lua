@@ -271,6 +271,8 @@ end
 function PT.SpellExtras(tt, spellID)
 	local db = PT.db
 	if not (db and db.recipeAlts and spellID) then return end
+	-- (WoW Forever can hand over a hidden spell id - the damage meter's tooltips do - and it can't be looked up)
+	if issecretvalue and issecretvalue(spellID) then return end
 	local skill, learn, created = RecipeBySpell(spellID)
 	if not skill then return end
 	if tt.ptSpellDone == spellID then return end       -- some tooltips report twice
