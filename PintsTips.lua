@@ -328,7 +328,7 @@ function PT.EquippedHeader(tt)
 end
 
 -- comparing gear: what you're wearing sits to the LEFT of the item you're looking at, a little smaller, its bottom
--- edge lined up with the bottom of the item's tooltip. If there's no room on the left, the pair slides right to fit.
+-- edge lined up with the bottom of the item's tooltip. If there's no room on the left, it goes on the right instead.
 local SMALL = 0.85
 local function Px(f, v) return v and v * f:GetEffectiveScale() end
 local function Arrange()
@@ -343,25 +343,32 @@ local function Arrange()
 	for _, t in ipairs({ s1, two and s2 or nil }) do
 		if not t.ptBase then t.ptBase = t:GetScale(); t:SetScale(t.ptBase * SMALL) end
 	end
+	-- room on the left? (the game keeps tooltips on screen: one pushed off the left edge gets shoved back on - right on
+	-- top of the item's tooltip. So with no room there, the worn gear goes on the right instead.)
+	local w1 = s1:GetWidth() * s1:GetEffectiveScale()
+	local w2 = two and (s2:GetWidth() * s2:GetEffectiveScale()) or 0
+	local need = w1 + (two and (w2 + 2 * s1:GetEffectiveScale()) or 0) + 4
+	local mainLeft, mainRight = Px(main, main:GetLeft()), Px(main, main:GetRight())
+	local screen = Px(UIParent, UIParent:GetRight())
+	local onRight = mainLeft and mainLeft < need and mainRight and screen and (mainRight + need <= screen)
 	-- (two of them - rings, trinkets: each is placed against the item's tooltip on its own, never one on the other -
 	-- the game chains them one way or the other as it likes, and two chained to each other is an error)
-	local last = s1
-	if two then
-		s1:ClearAllPoints(); s2:ClearAllPoints()
-		s2:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
-		local w2 = s2:GetWidth() * s2:GetEffectiveScale() / s1:GetEffectiveScale()
-		s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2 - w2 - 2, 0)
+	s1:ClearAllPoints()
+	if two then s2:ClearAllPoints() end
+	if onRight then
+		if two then
+			s2:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2, 0)
+			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2 + (w2 / s1:GetEffectiveScale()) + 2, 0)
+		else
+			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2, 0)
+		end
 	else
-		s1:ClearAllPoints(); s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
-	end
-	-- off the left edge of the screen? slide the item's tooltip (and the rest with it) right
-	local leftmost = Px(last, last:GetLeft())
-	local left, top, right, screen = Px(main, main:GetLeft()), Px(main, main:GetTop()), Px(main, main:GetRight()), Px(UIParent, UIParent:GetRight())
-	if not (leftmost and left and top and right and screen) then return end
-	local over = -leftmost
-	if over > 0 and right + over <= screen then
-		local es = main:GetEffectiveScale()
-		main:ClearAllPoints(); main:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", (left + over) / es, top / es)
+		if two then
+			s2:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
+			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2 - (w2 / s1:GetEffectiveScale()) - 2, 0)
+		else
+			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
+		end
 	end
 end
 -- (the game re-places the comparison tooltip after we have, sometimes more than once - so whenever it moves it,

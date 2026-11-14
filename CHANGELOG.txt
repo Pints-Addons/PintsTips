@@ -1,5 +1,9 @@
 Pint's Tips - Changelog
 
+v1.2.4
+- Comparing gear near the left edge of the screen (a vendor's items, for one): what you're wearing goes on the right of
+  the item instead of landing on top of it.
+
 v1.2.3
 - What you're wearing shows beside an item only while you hold Shift. "Compare only while Shift is held" in /tips.
 - Comparing gear: what you're wearing now shows a little smaller, to the left of the item you're looking at, lined up
