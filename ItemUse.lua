@@ -246,10 +246,53 @@ local function AddRecipeFor(tt, spellID, skill, learn, created)
 	if #later > 0 then tt:AddLine("|cffff8040Learnable at " .. pname .. " " .. learn .. ":|r " .. table.concat(later, ", "), 1, 1, 1, true) end
 	return true
 end
+-- a recipe's reagents: Pints Recipe Sources' data when it's loaded (it has WoW Forever's own recipes too), else ours
+-- (turned round from "what each item is used in")
+local reagentIndex
+local function Reagents(spellID)
+	local D = RecipeSourcesData
+	local mk = D and D.make and D.make[spellID]
+	if mk and mk[2] and #mk[2] > 0 then return mk[2] end
+	if not reagentIndex then
+		reagentIndex = {}
+		for item, str in pairs(U.prof) do
+			for _, sp, n in str:gmatch("(%d+),%d+,(%d+),(%d+)") do
+				sp = tonumber(sp); reagentIndex[sp] = reagentIndex[sp] or {}
+				table.insert(reagentIndex[sp], { item, tonumber(n) })
+			end
+		end
+	end
+	return reagentIndex[spellID]
+end
+local GII = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+local function AddReagents(tt, spellID)
+	if PT.db and PT.db.recipeMats == false then return end
+	local list = Reagents(spellID)
+	if not list or #list == 0 then return end
+	local PA = _G.PintsAuctions
+	local cost, priced = 0, true
+	tt:AddLine(GOLD .. "Reagents:|r", 1, 1, 1)
+	for _, r in ipairs(list) do
+		local id, n = r[1], r[2]
+		local name = GII(id) or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+		if not name and C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end
+		local have = GetItemCount(id, true) or 0
+		local haveTxt = have >= n and ("|cff40ff40have " .. have .. "|r") or (have > 0 and (GREY .. "have " .. have .. "|r") or "")
+		tt:AddDoubleLine("  " .. WHITE .. n .. "x|r " .. (name or ("item " .. id)), haveTxt, 1, 1, 1, 1, 1, 1)
+		local p
+		if PA and PA.Price then local ok, v = pcall(PA.Price, id); if ok and type(v) == "number" and v > 0 then p = v end end
+		if p then cost = cost + p * n else priced = false end
+	end
+	if cost > 0 and GetCoinTextureString then
+		tt:AddDoubleLine(GREY .. "  Reagents cost about|r", GetCoinTextureString(math.floor(cost)) .. (priced and "" or GREY .. " +|r"), 1, 1, 1, 1, 1, 1)
+	end
+end
 local function AddRecipe(tt, id)
 	local r = U.recipe[id]
 	if not r then return false end
-	return AddRecipeFor(tt, r[1], r[2], r[3], r[4])
+	local shown = AddRecipeFor(tt, r[1], r[2], r[3], r[4])
+	AddReagents(tt, r[1])
+	return shown
 end
 
 -- a recipe by its spell: Pints Recipe Sources' data covers every recipe (trainer ones too); ours covers recipe items
