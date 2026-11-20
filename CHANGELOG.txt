@@ -1,5 +1,10 @@
 Pint's Tips - Changelog
 
+v1.2.6
+- WoW Forever: "used in" lines on item tooltips list Forever's recipes (all nine professions, from Wowhead's WoW
+  Forever database) in place of the Classic ones - Forever's new recipes included, and its skill levels; recipe items
+  name what they teach on Forever. Quests use Forever's levels and drop the quests Forever removed.
+
 v1.2.5
 - Recipe tooltips (patterns, formulas, plans, and recipe links in chat) list the reagents it needs, how many of each
   you have, and roughly what they cost at Pint's Auctions' prices.
