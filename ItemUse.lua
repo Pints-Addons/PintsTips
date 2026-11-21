@@ -172,6 +172,11 @@ local function AddQuests(tt, id, detail)
 		local finished = q.finished
 		tt:AddDoubleLine((i == 1 and (GOLD .. "Quest|r ") or "      ") .. (finished and GREY or WHITE) .. q.title .. "|r" .. GREY .. " [" .. q.level .. "]|r",
 			finished and (GREY .. "done|r") or (WHITE .. "x" .. q.count .. "|r"))
+		-- and how far along your group is with it
+		if not finished and PT.AddGroupProgress then
+			local iname = ((C_Item and C_Item.GetItemInfo) or GetItemInfo)(id)
+			PT.AddGroupProgress(tt, q.id, iname)
+		end
 	end
 	return true
 end
