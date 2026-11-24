@@ -35,9 +35,15 @@ local function Split(s, f)
 end
 
 ---------------------------------------------------------------- your characters (from Pint's Ledger)
-local ME, REALM = (GetUnitName and GetUnitName("player", false)) or UnitName("player"), GetRealmName()   -- (full "First Second" name on WoW Forever, as Pint's Alts saves it)
+-- (the realm, asked when needed: WoW Forever can name it blank at load time - then Pint's Alts' last realm stands in)
+local function RealmNow()
+	local r = GetRealmName and GetRealmName()
+	if type(r) == "string" and r ~= "" and not (type(issecretvalue) == "function" and issecretvalue(r)) then return r end
+	return (PintsLedgerDB and PintsLedgerDB.lastRealm) or ""
+end
+local ME = (GetUnitName and GetUnitName("player", false)) or UnitName("player")   -- (full "First Second" name on WoW Forever, as Pint's Alts saves it)
 local function Characters()
-	local db = PintsLedgerDB and PintsLedgerDB.chars and PintsLedgerDB.chars[REALM]
+	local db = PintsLedgerDB and PintsLedgerDB.chars and PintsLedgerDB.chars[RealmNow()]
 	return db or {}
 end
 local function WornCount(gear, id)

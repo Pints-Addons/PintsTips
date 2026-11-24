@@ -1,5 +1,10 @@
 Pint's Tips - Changelog
 
+v1.2.8
+- WoW Forever: item tooltips show how many each of your characters has again. The realm was read once at load time,
+  when the game can still report it as blank, so no characters were found; it's now read when needed, with Pint's
+  Alts' last realm standing in.
+
 v1.2.7
 - Quest items: the tooltip shows how far along your group is - each party or raid member's count for that quest
   (3/10, green when done). Members running Pint's Tips share their quest item progress over the add-on channel; others
