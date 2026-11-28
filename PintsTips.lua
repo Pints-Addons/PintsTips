@@ -18,7 +18,7 @@ _G.PintsTips = PT
 
 local DEFAULTS = {
 	classColor = true, title = true, guild = true, talents = true, talentPeek = true, gearscore = true, ilvl = true, target = true, zone = true, compareRight = true, compareShift = true,
-	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, unitHistory = true, notesTips = true, foreverTag = true, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
+	itemLevel = true, itemScore = true, charFrame = true, usedFor = true, counts = true, recipeAlts = true, itemID = false, unitHistory = true, notesTips = true, foreverTag = true, rims = true, anchor = "default", ax = -40, ay = 120, inCombat = true, minimap = {},
 }
 local db
 local function Print(m) print("|cffd4a017Pint's Tips:|r " .. m) end
@@ -281,13 +281,77 @@ end
 local tipDone = setmetatable({}, { __mode = "k" })
 local function ClearDone(tt) tipDone[tt] = nil end
 local cleared = {}
+-- a thick coloured frame round a tooltip, just outside its edge, 10 screen pixels wide: what you're wearing (the
+-- comparison tooltips) in your class's colour, and the item you're looking at in its
+-- quality's colour (grey, white, green, blue, purple, orange). 2 screen pixels wide.
+local RIM = 2
+local function PhysPx() local _, ph = GetPhysicalScreenSize and GetPhysicalScreenSize(); return 768 / ((ph and ph > 0) and ph or 768) end
+local function SizeRim(tt)
+	local f = tt.ptRim
+	if not f then return end
+	local px = RIM * PhysPx() / math.max(0.01, tt:GetEffectiveScale() or 1)
+	local T, B, L, R = f.e[1], f.e[2], f.e[3], f.e[4]
+	T:ClearAllPoints(); T:SetPoint("BOTTOMLEFT", tt, "TOPLEFT", -px, 0); T:SetPoint("BOTTOMRIGHT", tt, "TOPRIGHT", px, 0); T:SetHeight(px)
+	B:ClearAllPoints(); B:SetPoint("TOPLEFT", tt, "BOTTOMLEFT", -px, 0); B:SetPoint("TOPRIGHT", tt, "BOTTOMRIGHT", px, 0); B:SetHeight(px)
+	L:ClearAllPoints(); L:SetPoint("TOPRIGHT", tt, "TOPLEFT", 0, 0); L:SetPoint("BOTTOMRIGHT", tt, "BOTTOMLEFT", 0, 0); L:SetWidth(px)
+	R:ClearAllPoints(); R:SetPoint("TOPLEFT", tt, "TOPRIGHT", 0, 0); R:SetPoint("BOTTOMLEFT", tt, "BOTTOMRIGHT", 0, 0); R:SetWidth(px)
+end
+PT.SizeRim = SizeRim
+local RIM_Q = { [0] = { 0.62, 0.62, 0.62 }, { 1, 1, 1 }, { 0.12, 1, 0 }, { 0, 0.44, 0.87 }, { 0.64, 0.21, 0.93 }, { 1, 0.5, 0 }, { 0.9, 0.8, 0.5 }, { 0, 0.8, 1 } }
+local function HideRim(tt) if tt.ptRim then tt.ptRim:Hide() end end
+local function ShowRim(tt, c)
+	local f = tt.ptRim
+	if not f then
+		f = CreateFrame("Frame", nil, tt)
+		f:SetAllPoints(tt); f:SetFrameLevel(tt:GetFrameLevel() + 10)
+		f.e = {}
+		for i = 1, 4 do f.e[i] = f:CreateTexture(nil, "OVERLAY"); f.e[i]:SetColorTexture(1, 1, 1, 1) end
+		tt.ptRim = f
+		tt:HookScript("OnHide", HideRim)
+	end
+	SizeRim(tt)
+	for i = 1, 4 do f.e[i]:SetVertexColor(c[1], c[2], c[3], 1) end
+	f.c = c
+	f:Show()
+end
+-- is the item in a comparison tooltip really worn? (WoW Forever also shows a piece from your bags it would pair with -
+-- an off-hand to go with a one-hander when you wear a two-hander - in a comparison tooltip of its own)
+local function TipLink(tt)
+	local _, link
+	if tt.GetItem then _, link = tt:GetItem() elseif TooltipUtil and TooltipUtil.GetDisplayedItem then _, link = TooltipUtil.GetDisplayedItem(tt) end
+	return Known(link)
+end
+local function Worn(link)
+	local id = link and tonumber(link:match("item:(%d+)"))
+	if not id then return true end   -- (can't tell: leave it as the game has it)
+	for slot = 1, 19 do
+		local l = GetInventoryItemLink("player", slot)
+		if l and tonumber(l:match("item:(%d+)")) == id then return true end
+	end
+	return false
+end
+PT.Worn = function(tt) return Worn(TipLink(tt)) end
+local function Rims(tt, link)
+	if db.rims == false then HideRim(tt); return end
+	if (tt == ShoppingTooltip1 or tt == ShoppingTooltip2) and Worn(link) then
+		-- what you're wearing: your class's colour
+		local _, cls = UnitClass("player")
+		local c = cls and RAID_CLASS_COLORS[cls]
+		ShowRim(tt, c and { c.r, c.g, c.b } or { 1, 0.82, 0 })
+	else
+		local q = Known(select(3, GetItemInfo(link)))
+		if q and RIM_Q[q] then ShowRim(tt, RIM_Q[q]) else HideRim(tt) end
+	end
+end
 local function ItemTip(tt)
 	if not db then return end
 	local _, link
 	if tt.GetItem then _, link = tt:GetItem()
 	elseif TooltipUtil and TooltipUtil.GetDisplayedItem then _, link = TooltipUtil.GetDisplayedItem(tt) end
 	if not link then return end
-	if not cleared[tt] and tt.HookScript then cleared[tt] = true; tt:HookScript("OnTooltipCleared", ClearDone) end
+	if not cleared[tt] and tt.HookScript then cleared[tt] = true; tt:HookScript("OnTooltipCleared", ClearDone); tt:HookScript("OnTooltipCleared", HideRim) end
+	-- (a recipe reports its item twice - the recipe, then what it makes: the frame goes by the first, the recipe)
+	if not tipDone[tt] then pcall(Rims, tt, link) end
 	if tipDone[tt] == link then return end
 	tipDone[tt] = link
 	local _, _, rarity, level, _, _, _, _, loc = GetItemInfo(link)
@@ -306,9 +370,10 @@ local function ItemTip(tt)
 end
 -- the comparison tooltip of what you're wearing: a bold gold "Currently Equipped" over it, so it's plain which is which
 local headFont = CreateFont("PintsTipsEquippedFont")
-do local f = GameFontNormalLarge and GameFontNormalLarge:GetFont() or STANDARD_TEXT_FONT; headFont:SetFont(f, 15, "OUTLINE") end
+do local f = GameFontNormalLarge and GameFontNormalLarge:GetFont() or STANDARD_TEXT_FONT; headFont:SetFont(f, 19, "OUTLINE") end
 function PT.EquippedHeader(tt)
-	local label = CURRENTLY_EQUIPPED or "Currently Equipped"
+	local worn = PT.Worn(tt)
+	local label = worn and (CURRENTLY_EQUIPPED or "Currently Equipped") or "From your bags"
 	-- WoW Forever: the game's own little "Equipped" tab above the tooltip
 	local h = tt.CompareHeader
 	if h then
@@ -317,8 +382,24 @@ function PT.EquippedHeader(tt)
 		if fs then
 			fs:SetFontObject(headFont); fs:SetText(label); fs:SetTextColor(1, 0.82, 0)
 			local ok, w = pcall(fs.GetUnboundedStringWidth or fs.GetStringWidth, fs)
-			if ok and type(w) == "number" and not (type(issecretvalue) == "function" and issecretvalue(w)) then h:SetWidth(w + 24) end
-			if h.SetHeight then h:SetHeight(24) end
+			if ok and type(w) == "number" and not (type(issecretvalue) == "function" and issecretvalue(w)) then h:SetWidth(w + 28) end
+			if h.SetHeight then h:SetHeight(30) end
+			-- with the coloured frames on: the tab sits on top of the frame, bright - filled with your class colour,
+			-- white lettering - so it reads as part of it
+			if db and db.rims ~= false and tt.ptRim and tt.ptRim:IsShown() then
+				pcall(h.SetFrameLevel, h, tt.ptRim:GetFrameLevel() + 2)
+				if not h.ptFill then
+					h.ptFill = h:CreateTexture(nil, "BORDER", nil, 7)
+					h.ptFill:SetPoint("TOPLEFT", 2, -2); h.ptFill:SetPoint("BOTTOMRIGHT", -2, 2)
+				end
+				-- (the frame's own colour: your class's for what you wear, the item's quality for one from your bags)
+				local c = tt.ptRim.c or { 1, 0.82, 0 }
+				h.ptFill:SetColorTexture(c[1], c[2], c[3], 1); h.ptFill:Show()
+				-- white lettering, or black on a pale fill (a common item's white, a paladin's pink)
+				if c[1] * 0.3 + c[2] * 0.59 + c[3] * 0.11 > 0.75 then fs:SetTextColor(0, 0, 0) else fs:SetTextColor(1, 1, 1) end
+				if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, 1); fs:SetShadowOffset(1, -1) end
+				if fs.SetDrawLayer then fs:SetDrawLayer("OVERLAY", 7) end
+			elseif h.ptFill then h.ptFill:Hide() end
 			return
 		end
 	end
@@ -351,25 +432,30 @@ local function Arrange()
 	local mainLeft, mainRight = Px(main, main:GetLeft()), Px(main, main:GetRight())
 	local screen = Px(UIParent, UIParent:GetRight())
 	local onRight = mainLeft and mainLeft < need and mainRight and screen and (mainRight + need <= screen)
+	-- the gap between tooltips: room for both coloured frames, so they sit side by side without overlapping
+	local G = 2
+	if db.rims ~= false then G = 2 + (2 * RIM + 2) * PhysPx() / math.max(0.01, s1:GetEffectiveScale()) end
 	-- (two of them - rings, trinkets: each is placed against the item's tooltip on its own, never one on the other -
 	-- the game chains them one way or the other as it likes, and two chained to each other is an error)
 	s1:ClearAllPoints()
 	if two then s2:ClearAllPoints() end
 	if onRight then
 		if two then
-			s2:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2, 0)
-			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2 + (w2 / s1:GetEffectiveScale()) + 2, 0)
+			s2:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", G, 0)
+			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", G + (w2 / s1:GetEffectiveScale()) + G, 0)
 		else
-			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", 2, 0)
+			s1:SetPoint("BOTTOMLEFT", main, "BOTTOMRIGHT", G, 0)
 		end
 	else
 		if two then
-			s2:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
-			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2 - (w2 / s1:GetEffectiveScale()) - 2, 0)
+			s2:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -G, 0)
+			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -G - (w2 / s1:GetEffectiveScale()) - G, 0)
 		else
-			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -2, 0)
+			s1:SetPoint("BOTTOMRIGHT", main, "BOTTOMLEFT", -G, 0)
 		end
 	end
+	-- (their size changed: the frames keep 2 screen pixels)
+	SizeRim(s1); if two then SizeRim(s2) end
 end
 -- (the game re-places the comparison tooltip after we have, sometimes more than once - so whenever it moves it,
 -- it's put back on the right; "busy" stops our own moves from looping)
@@ -485,7 +571,7 @@ end
 function PT.ToggleOptions()
 	if not opt then
 		opt = CreateFrame("Frame", "PintsTipsOptions", UIParent, "BasicFrameTemplateWithInset")
-		opt:SetSize(320, 488); opt:SetPoint("CENTER"); opt:SetFrameStrata("DIALOG")
+		opt:SetSize(320, 510); opt:SetPoint("CENTER"); opt:SetFrameStrata("DIALOG")
 		opt:SetMovable(true); opt:EnableMouse(true); opt:RegisterForDrag("LeftButton")
 		opt:SetScript("OnDragStart", opt.StartMoving); opt:SetScript("OnDragStop", opt.StopMovingOrSizing)
 		tinsert(UISpecialFrames, "PintsTipsOptions")
@@ -504,11 +590,12 @@ function PT.ToggleOptions()
 		Check(16, -254, "Your notes and ratings", "notesTips"); Check(170, -254, "Added in WoW Forever", "foreverTag")
 		Check(16, -276, "Compare: worn on the left, smaller, at the bottom", "compareRight")
 		Check(170, -276, "Compare only while Shift is held", "compareShift")
-		head(-308, "Character window")
-		Check(16, -326, "GearScore and item level", "charFrame"); Check(170, -326, "Players: their zone", "zone")
-		head(-358, "Where tooltips appear")
+		Check(16, -298, "Coloured frames: worn = class, item = quality", "rims")
+		head(-330, "Character window")
+		Check(16, -348, "GearScore and item level", "charFrame"); Check(170, -348, "Players: their zone", "zone")
+		head(-380, "Where tooltips appear")
 		local modes = { { "default", "Blizzard's corner" }, { "cursor", "At the cursor" }, { "fixed", "A spot I choose" } }
-		local b = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); b:SetSize(150, 22); b:SetPoint("TOPLEFT", 16, -378)
+		local b = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); b:SetSize(150, 22); b:SetPoint("TOPLEFT", 16, -400)
 		local mv = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); mv:SetSize(110, 22); mv:SetPoint("LEFT", b, "RIGHT", 6, 0); mv:SetText("Move spot")
 		local function show() for _, m in ipairs(modes) do if m[1] == db.anchor then b:SetText(m[2]) end end; mv:SetShown(db.anchor == "fixed") end
 		b:SetScript("OnClick", function()
@@ -518,7 +605,7 @@ function PT.ToggleOptions()
 		mv:SetScript("OnClick", function() Mover(not (mover and mover:IsShown())) end)
 		opt:HookScript("OnShow", show)
 		opt:HookScript("OnHide", function() Mover(false) end)
-		opt.taco = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); opt.taco:SetSize(200, 22); opt.taco:SetPoint("TOPLEFT", 16, -418)
+		opt.taco = CreateFrame("Button", nil, opt, "UIPanelButtonTemplate"); opt.taco:SetSize(200, 22); opt.taco:SetPoint("TOPLEFT", 16, -440)
 		opt.taco:SetText("Switch TacoTip off"); opt.taco:SetScript("OnClick", function() PT.TacoOff() end)
 		opt:HookScript("OnShow", function() opt.taco:SetShown(PT.TacoLoaded()) end)
 		opt:Hide()
